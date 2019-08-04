@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Document</title>
+
+    <style>
+        /* Always set the map height explicitly to define the size of the div
+            * element that contains the map. */
+        #map {
+            height: 100%;
+        }
+        /* Optional: Makes the sample page fill the window. */
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="map"></div>
+
+    <script>
+        var beProj = '+proj=lcc +lat_1=51.16666723333333 +lat_2=49.8333339 +lat_0=90 +lon_0=4.367486666666666 +x_0=150000.013 +y_0=5400088.438 +ellps=intl +towgs84=-106.869,52.2978,-103.724,0.3366,-0.457,1.8422,-1.2747 +units=m +no_defs';
+        var googleProj = 'WGS84';
+
+        function initMap(coordsFixed, coordsVar) {
+            var map = new google.maps.Map(document.getElementById('map'), {
+                zoom: 8,
+                center: {lat: 50.8466, lng: 4.3528}
+            });
+
+
+            // const coordsVar = [
+            //     {x:111500, y:153000},
+            //     {x:249500, y:149500},
+            //     {x:213500, y:68500},
+            // ];
+
+            // Map coords Lambert 72 to Google coords (return new array of coords)
+            const mercatorPointsFixed = coordsFixed.map((coord) => {
+                const mercator = proj4(beProj, googleProj, coord);
+                return {lat: mercator.y, lng: mercator.x};
+            });
+
+            const mercatorPointsVar = coordsVar.map((coord) => {
+                const mercator = proj4(beProj, googleProj, coord);
+                return {lat: mercator.y, lng: mercator.x, variable: true};
+            });
+
+            mercatorPoints = [...mercatorPointsFixed, ...mercatorPointsVar];
+
+            setTimeout(() => {
+                var labels = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+                var markers = mercatorPoints.map(function(location, i) {
+                    return new google.maps.Marker({
+                        opacity: 1,
+                        position: location,
+                        label: labels[i % labels.length],
+                        icon: location.variable ? 'https://developers.google.com/maps/documentation/javascript/examples/full/images/beachflag.png' : undefined
+                    });
+                });
+
+                var markerCluster = new MarkerClusterer(map, markers,
+                    {imagePath: 'https://developers.google.com/maps/documentation/javascript/examples/markerclusterer/m'});
+
+                heatmap = new google.maps.visualization.HeatmapLayer({
+                    data: mercatorPoints.map(point => new google.maps.LatLng(point.lat, point.lng)),
+                    map: map,
+                    radius: 35
+                });
+                
+            }, 1000);
+
+        }
+
+        function getDataFromServer() {
+            const promise1 = fetch('https://serviceapi42.azurewebsites.net/api/values').then(response => response.json()).then(response => {
+                return response.map(elem => ({...elem, x: +elem.X, y: +elem.Y}));
+            });
+
+            const promise2 = fetch('https://serviceapi42.azurewebsites.net/api/values/dynamic').then(response => response.json()).then(response => {
+                return response.map(elem => ({...elem, x: +elem.X, y: +elem.Y}));
+            });
+
+            Promise.all([promise1, promise2]).then(response => {
+                initMap(response[0], response[1]);
+            });
+        }
+        
+    </script>
+
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.5.0/proj4.js"></script>
+    <script src="https://developers.google.com/maps/documentation/javascript/examples/markerclusterer/markerclusterer.js"></script>
+    <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyB-9wOIKOc8YIpplAqAPakU9QVwpi1uVcY&libraries=visualization&callback=getDataFromServer"></script>
+    
+</body>
+</html>
